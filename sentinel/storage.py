@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 
-SCHEMA = '''
+SCHEMA = """
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at TEXT NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
-'''
+"""
 
 
 class Storage:
@@ -84,3 +84,11 @@ class Storage:
             f"FROM events WHERE {' AND '.join(clauses)} ORDER BY id DESC",
             tuple(params),
         ).fetchall()
+
+    def delete_events_before(self, before_iso: str) -> int:
+        cursor = self.conn.execute(
+            "DELETE FROM events WHERE created_at < ?",
+            (before_iso,),
+        )
+        self.conn.commit()
+        return int(cursor.rowcount or 0)

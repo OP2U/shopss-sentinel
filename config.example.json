@@ -37,5 +37,6 @@
   "discord_alert_high": true,
   "discord_alert_block": true,
   "website_export_enabled": false,
-  "website_summary_path": "/var/www/shopss/data/sentinel-summary.json"
+  "website_summary_path": "/var/www/shopss/data/sentinel-summary.json",
+  "event_retention_days": 30
 }

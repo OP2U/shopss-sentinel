@@ -1,39 +1,31 @@
 # Changelog
 
-## Public packaging / licensing
+## 0.6.1
 
-- Switched the public source distribution to Apache License 2.0.
-- Added NOTICE, LEGAL.md, and THIRD_PARTY_NOTICES.md.
-- Added SPDX Apache-2.0 identifiers to source and scripts.
-- Clarified authorized-use, warranty, liability, and third-party dependency notices.
+- Fixed the v0.6.0 event-retention method indentation error.
+- Restored normal collector cycles and summary generation.
+- Added summary generation timestamp to `sentinel status`.
+- No detection, blocking, allowlist, Discord, or firewall behavior changed.
+
+## 0.6.0
+
+- Reworked attack-volume reporting.
+- Added distinct brute-force source and blocked-source metrics.
+- Added current 15-minute Threat Activity.
+- Added 1-hour context metrics.
+- Added 30-day event retention.
 
 ## 0.5.0
 
-- Added sanitized live website export for `shopss.me`.
-- Added `website_export_enabled`.
-- Added `website_summary_path`.
-- Added `sentinel website-status`.
-- Added `scripts/configure-website-export.sh`.
-- Added `scripts/disable-website-export.sh`.
-- Public website export is mode 0644 and contains aggregate fields only.
-- Private database/event metadata remains outside the website root.
-- Existing detection, response, Discord, and operations behavior is unchanged.
+- Added sanitized live website export.
 
-## 0.4.2
+## 0.4.x
 
-- Added safe Discord configuration and test tooling.
-
-## 0.4.1
-
-- Fixed active-block expiry display.
-
-## 0.4.0
-
-- Added operations CLI and incident grouping.
+- Added operations CLI and Discord alerts.
 
 ## 0.3.0
 
-- Added automated SSH response.
+- Added controlled automated SSH blocking.
 
 ## 0.2.x
 

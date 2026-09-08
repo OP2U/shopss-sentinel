@@ -44,6 +44,7 @@ def _fmt_expiry(block: dict) -> str:
 
     return "".join(parts)
 
+
 def command_status(config_path: str):
     cfg = load_config(config_path)
 
@@ -52,38 +53,40 @@ def command_status(config_path: str):
         return 1
 
     summary = json.loads(cfg.public_summary_path.read_text(encoding="utf-8"))
-    severity = summary.get("severity_24h", {})
     services = summary.get("services", {})
 
     print()
     print("SHOPSS SENTINEL")
-    print("=" * 56)
+    print("=" * 60)
     print(f"Host health       : {summary.get('host_health', summary.get('status', 'unknown')).upper()}")
-    print(f"Threat activity   : {summary.get('threat_activity', 'unknown').upper()}")
+    print(f"Threat activity   : {summary.get('threat_activity', 'unknown').upper()} (current)")
     print(f"Response mode     : {summary.get('response_mode', 'unknown').upper()}")
     print(f"Services          : {services.get('healthy', 0)}/{services.get('total', 0)} healthy")
     print(f"File integrity    : {summary.get('integrity', 'unknown').upper()}")
     print(f"Port baseline     : {summary.get('port_baseline', 'unknown').upper()}")
+    print(f"Active SSH blocks : {summary.get('active_ssh_blocks', 0)}")
+    print(f"Summary generated : {summary.get('generated_at', 'unknown')}")
     print()
     print("LAST 24 HOURS")
-    print("-" * 56)
-    print(f"Security events   : {summary.get('security_events_24h', 0)}")
-    print(f"SSH failures      : {summary.get('ssh_failures_24h', 0)}")
-    print(f"SSH sources       : {summary.get('ssh_sources_24h', 0)}")
-    print(f"Brute-force alerts: {summary.get('ssh_bruteforce_alerts_24h', 0)}")
-    print(f"SSH blocks        : {summary.get('ssh_blocks_24h', 0)}")
+    print("-" * 60)
+    print(f"SSH attempts      : {summary.get('ssh_attempts_24h', summary.get('ssh_failures_24h', 0))}")
+    print(f"Unique SSH sources: {summary.get('ssh_sources_24h', 0)}")
+    print(f"Brute-force sources: {summary.get('ssh_bruteforce_sources_24h', 0)}")
+    print(f"Sources blocked   : {summary.get('ssh_blocked_sources_24h', 0)}")
     print(f"Web probes        : {summary.get('web_probes_24h', 0)}")
     print()
-    print("SEVERITY")
-    print("-" * 56)
-    print(f"Low               : {severity.get('low', 0)}")
-    print(f"Medium            : {severity.get('medium', 0)}")
-    print(f"High              : {severity.get('high', 0)}")
-    print(f"Critical          : {severity.get('critical', 0)}")
+    print("LAST HOUR")
+    print("-" * 60)
+    print(f"SSH attempts      : {summary.get('ssh_attempts_1h', 0)}")
+    print(f"Unique SSH sources: {summary.get('ssh_sources_1h', 0)}")
+    print(f"Web probes        : {summary.get('web_probes_1h', 0)}")
+    print()
+    print("NOTE")
+    print("-" * 60)
+    print("Failed attempts are observed Internet traffic, not successful compromises.")
     print()
 
     return 0
-
 
 def command_blocks():
     blocks = list_active_blocks()

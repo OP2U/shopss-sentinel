@@ -20,7 +20,7 @@ from .collectors import (
     sha256_file,
 )
 from .config import load_config
-from .firewall import temporary_block_ssh
+from .firewall import list_active_blocks, temporary_block_ssh
 from .storage import Storage
 
 
@@ -233,21 +233,22 @@ def respond_to_ssh_bruteforce(storage: Storage, config) -> None:
                 )
 
 
-def distinct_ssh_sources_24h(db_path: Path, since_iso: str) -> int:
+
+def distinct_event_sources(db_path: Path, since_iso: str, event_type: str) -> set[str]:
     con = sqlite3.connect(db_path)
     rows = con.execute(
         """
         SELECT metadata_json
         FROM events
         WHERE created_at >= ?
-          AND event_type = 'ssh_auth_failure'
+          AND event_type = ?
           AND metadata_json IS NOT NULL
         """,
-        (since_iso,),
+        (since_iso, event_type),
     ).fetchall()
     con.close()
 
-    sources = set()
+    sources: set[str] = set()
 
     for (metadata_json,) in rows:
         try:
@@ -257,12 +258,40 @@ def distinct_ssh_sources_24h(db_path: Path, since_iso: str) -> int:
 
         source = metadata.get("source_ip")
         if source:
-            sources.add(source)
+            sources.add(str(source))
 
-    return len(sources)
+    return sources
 
+
+def maybe_cleanup_old_events(storage: Storage, config) -> None:
+    now = datetime.now(timezone.utc)
+    last_raw = storage.get_state("maintenance:last_event_cleanup")
+
+    if last_raw:
+        try:
+            last = datetime.fromisoformat(last_raw)
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+
+            if now - last < timedelta(hours=24):
+                return
+        except ValueError:
+            pass
+
+    before = (now - timedelta(days=config.event_retention_days)).isoformat()
+    deleted = storage.delete_events_before(before)
+    storage.set_state("maintenance:last_event_cleanup", now.isoformat())
+
+    if deleted:
+        storage.add_event(
+            "info",
+            "maintenance",
+            f"Removed {deleted} event records older than {config.event_retention_days} days."
+        )
 
 def run_cycle(config, storage: Storage) -> None:
+    maybe_cleanup_old_events(storage, config)
+
     journal_cursor = storage.get_state("ssh:journal_cursor")
     ssh_events, new_cursor = collect_ssh_failures(journal_cursor)
 
@@ -374,7 +403,10 @@ def run_cycle(config, storage: Storage) -> None:
                 f"Protected file returned to its trusted baseline: {path}"
             )
 
-    since_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    now = datetime.now(timezone.utc)
+    since_24h = (now - timedelta(hours=24)).isoformat()
+    since_1h = (now - timedelta(hours=1)).isoformat()
+    since_15m = (now - timedelta(minutes=15)).isoformat()
 
     severity_counts = {
         severity: storage.count_events_since(since_24h, severity=severity)
@@ -382,8 +414,29 @@ def run_cycle(config, storage: Storage) -> None:
     }
 
     security_events_24h = sum(severity_counts.values())
+
+    ssh_failures_24h = storage.count_events_since(since_24h, "ssh_auth_failure")
+    ssh_failures_1h = storage.count_events_since(since_1h, "ssh_auth_failure")
+
+    ssh_sources_24h = distinct_event_sources(
+        config.database_path, since_24h, "ssh_auth_failure"
+    )
+    ssh_sources_1h = distinct_event_sources(
+        config.database_path, since_1h, "ssh_auth_failure"
+    )
+    bruteforce_sources_24h = distinct_event_sources(
+        config.database_path, since_24h, "ssh_bruteforce"
+    )
+    blocked_sources_24h = distinct_event_sources(
+        config.database_path, since_24h, "ssh_block"
+    )
+
+    brute_force_alerts_24h = storage.count_events_since(since_24h, "ssh_bruteforce")
     ssh_blocks_24h = storage.count_events_since(since_24h, "ssh_block")
-    ssh_sources_24h = distinct_ssh_sources_24h(config.database_path, since_24h)
+    web_probes_24h = storage.count_events_since(since_24h, "web_probe")
+    web_probes_1h = storage.count_events_since(since_1h, "web_probe")
+
+    active_blocks = len(list_active_blocks())
 
     host_healthy = (
         all(services.values() or [True])
@@ -392,32 +445,55 @@ def run_cycle(config, storage: Storage) -> None:
         and integrity_ok
     )
 
-    if severity_counts["critical"] > 0 or ssh_blocks_24h > 0 or severity_counts["high"] > 0:
+    # Threat Activity is intentionally "current", not a 24-hour alarm state.
+    recent_high = storage.count_events_since(since_15m, severity="high")
+    recent_failures = storage.count_events_since(since_15m, "ssh_auth_failure")
+    recent_probes = storage.count_events_since(since_15m, "web_probe")
+
+    if active_blocks > 0 or recent_high > 0:
         threat_activity = "elevated"
-    elif security_events_24h > 0:
+    elif recent_failures > 0 or recent_probes > 0:
         threat_activity = "active"
     else:
         threat_activity = "quiet"
 
     public_summary = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": now.isoformat(),
         "status": "secure" if host_healthy else "attention",
         "host_health": "healthy" if host_healthy else "attention",
         "threat_activity": threat_activity,
+        "threat_activity_window_minutes": 15,
         "services": {
             "healthy": sum(1 for value in services.values() if value),
             "total": len(services),
         },
+
+        # Compatibility field retained for older clients.
         "security_events_24h": security_events_24h,
         "severity_24h": severity_counts,
-        "ssh_failures_24h": storage.count_events_since(since_24h, "ssh_auth_failure"),
-        "ssh_sources_24h": ssh_sources_24h,
-        "ssh_bruteforce_alerts_24h": storage.count_events_since(since_24h, "ssh_bruteforce"),
+
+        # Human-readable attack-volume metrics.
+        "ssh_attempts_24h": ssh_failures_24h,
+        "ssh_failures_24h": ssh_failures_24h,
+        "ssh_sources_24h": len(ssh_sources_24h),
+        "ssh_bruteforce_sources_24h": len(bruteforce_sources_24h),
+        "ssh_blocked_sources_24h": len(blocked_sources_24h),
+
+        # Raw event/action counts retained for detailed/private reporting.
+        "ssh_bruteforce_alerts_24h": brute_force_alerts_24h,
         "ssh_blocks_24h": ssh_blocks_24h,
-        "web_probes_24h": storage.count_events_since(since_24h, "web_probe"),
+        "web_probes_24h": web_probes_24h,
+
+        # Short-window context.
+        "ssh_attempts_1h": ssh_failures_1h,
+        "ssh_sources_1h": len(ssh_sources_1h),
+        "web_probes_1h": web_probes_1h,
+        "active_ssh_blocks": active_blocks,
+
         "integrity": "ok" if integrity_ok else "changed",
         "port_baseline": "ok" if not missing_ports and not unexpected_ports else "changed",
         "response_mode": "enabled" if config.response_enabled else "observe",
+        "event_retention_days": config.event_retention_days,
     }
 
     write_public_summary(config.public_summary_path, public_summary)

@@ -36,6 +36,8 @@ class Config:
     website_export_enabled: bool
     website_summary_path: Path
 
+    event_retention_days: int
+
 
 def load_config(path: str | Path) -> Config:
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
@@ -67,4 +69,6 @@ def load_config(path: str | Path) -> Config:
 
         website_export_enabled=bool(raw.get("website_export_enabled", False)),
         website_summary_path=Path(raw.get("website_summary_path", "/var/www/shopss/data/sentinel-summary.json")),
+
+        event_retention_days=max(1, int(raw.get("event_retention_days", 30))),
     )
