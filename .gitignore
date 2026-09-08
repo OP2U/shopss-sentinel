@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+dist/
+build/
+*.log
+*.tmp
+
+# Never commit a deployment's private config or generated telemetry.
+config.json
+sentinel-summary.json
+public-summary.json

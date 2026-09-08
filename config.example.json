@@ -1,0 +1,41 @@
+{
+  "poll_interval_seconds": 60,
+  "database_path": "/var/lib/shopss-sentinel/sentinel.db",
+  "public_summary_path": "/var/lib/shopss-sentinel/public-summary.json",
+  "expected_services": [
+    "nginx"
+  ],
+  "expected_tcp_ports": [
+    22,
+    80,
+    443
+  ],
+  "integrity_files": [
+    "/etc/ssh/sshd_config",
+    "/etc/nginx/nginx.conf"
+  ],
+  "nginx_access_log": "/var/log/nginx/access.log",
+  "scanner_paths": [
+    "/.env",
+    "/.git",
+    "/wp-admin",
+    "/wp-login.php",
+    "/phpmyadmin",
+    "/server-status",
+    "/config.php"
+  ],
+  "ssh_bruteforce_threshold": 5,
+  "ssh_bruteforce_window_minutes": 5,
+  "ssh_bruteforce_cooldown_minutes": 15,
+  "response_enabled": false,
+  "response_ssh_block_threshold": 8,
+  "response_ssh_block_window_minutes": 5,
+  "response_ssh_block_minutes": 30,
+  "response_allowlist_ips": [],
+  "discord_alerts_enabled": false,
+  "discord_webhook_url": "",
+  "discord_alert_high": true,
+  "discord_alert_block": true,
+  "website_export_enabled": false,
+  "website_summary_path": "/var/www/shopss/data/sentinel-summary.json"
+}

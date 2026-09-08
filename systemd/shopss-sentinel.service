@@ -1,0 +1,19 @@
+# Copyright 2026 OP2U
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=SHOPSS Sentinel Security Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/shopss-sentinel
+ExecStart=/usr/bin/python3 -m sentinel.main --config /etc/shopss-sentinel/config.json
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
